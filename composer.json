@@ -1,0 +1,35 @@
+{
+    "name": "danielpetrica/laravel-activitypub",
+    "type": "library",
+    "description": "ActivityPub server implementation for Laravel applications. WebFinger, actor profiles, inbox/outbox, and federation.",
+    "keywords": ["laravel", "activitypub", "webfinger", "federation", "fediverse", "mastodon"],
+    "license": "MIT",
+    "require": {
+        "php": "^8.5",
+        "laravel/framework": "^13.0",
+        "ext-openssl": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "DanielPetrica\\LaravelActivityPub\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "DanielPetrica\\LaravelActivityPub\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "DanielPetrica\\LaravelActivityPub\\ActivityPubServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

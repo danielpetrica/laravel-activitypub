@@ -1,0 +1,31 @@
+<?php
+
+namespace DanielPetrica\LaravelActivityPub\Http\Controllers\Fediverse;
+
+use DanielPetrica\LaravelActivityPub\Models\Activity;
+use DanielPetrica\LaravelActivityPub\Traits\ResolvesLocalActor;
+use Illuminate\Routing\Controller;
+use Illuminate\View\View;
+
+final class InboxController extends Controller
+{
+    use ResolvesLocalActor;
+
+    public function __invoke(): View
+    {
+        $user = auth()->user();
+        $localActor = $this->resolveLocalActor();
+
+        $activities = Activity::query()
+            ->with(relations: 'remoteActor')
+            ->where(column: 'actor_id', operator: '=', value: $localActor->id)
+            ->where(column: 'is_incoming', operator: '=', value: true)
+            ->latest()
+            ->paginate(perPage: 20);
+
+        return view(view: 'activitypub::fediverse.inbox', data: [
+            'activities' => $activities,
+            'actor' => $user,
+        ]);
+    }
+}
