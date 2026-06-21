@@ -27,6 +27,7 @@ final class RemoteActor extends Model
     protected $fillable = [
         'actor_url',
         'inbox_url',
+        'shared_inbox_url',
         'public_key_pem',
         'username',
         'domain',

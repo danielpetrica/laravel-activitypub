@@ -25,7 +25,7 @@ final class ActorResource extends JsonResource
                 'https://w3id.org/security/v2',
             ],
             'id' => $url,
-            'type' => 'Person',
+            'type' => config('activitypub.actor_type', 'Person'),
             'preferredUsername' => $this->resource->username,
             'name' => $this->resource->name ?? $this->resource->username,
             'url' => $url,

@@ -2,13 +2,15 @@
 
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers\Fediverse;
 
+use DanielPetrica\LaravelActivityPub\Contracts\ActivityBuilderContract;
 use DanielPetrica\LaravelActivityPub\Enums\ActivityObjectType;
 use DanielPetrica\LaravelActivityPub\Enums\ActivityType;
+use DanielPetrica\LaravelActivityPub\Enums\FollowerStatus;
 use DanielPetrica\LaravelActivityPub\Jobs\DeliverActivity;
 use DanielPetrica\LaravelActivityPub\Models\Activity;
 use DanielPetrica\LaravelActivityPub\Models\Actor;
+use DanielPetrica\LaravelActivityPub\Models\Following;
 use DanielPetrica\LaravelActivityPub\Models\RemoteActor;
-use DanielPetrica\LaravelActivityPub\Services\ActivityBuilder;
 use DanielPetrica\LaravelActivityPub\Services\RemoteActorResolver;
 use DanielPetrica\LaravelActivityPub\Traits\ResolvesLocalActor;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +21,10 @@ use Illuminate\Support\Facades\Log;
 final class InteractController extends Controller
 {
     use ResolvesLocalActor;
+
+    public function __construct(
+        private ActivityBuilderContract $activityBuilder,
+    ) {}
 
     public function follow(Request $request): RedirectResponse
     {
@@ -37,7 +43,7 @@ final class InteractController extends Controller
                 ->withErrors(['remote_actor_url' => 'Could not resolve the remote actor']);
         }
 
-        $activity = ActivityBuilder::follow(actor: $localActor, objectUrl: $remoteActorUrl);
+        $activity = $this->activityBuilder->follow(actor: $localActor, objectUrl: $remoteActorUrl);
 
         $record = Activity::query()->create(attributes: [
             'actor_id' => $localActor->id,
@@ -50,11 +56,16 @@ final class InteractController extends Controller
         if (config(key: 'activitypub.federation.enabled')) {
             DeliverActivity::dispatch(
                 inboxUrl: $remoteActor->inbox_url,
-                activity: $activity,
-                actor: $localActor,
-                activityId: $record->id,
+                activityModelId: $record->id,
+                actorId: $localActor->id,
             );
         }
+
+        Following::query()->create([
+            'actor_id' => $localActor->id,
+            'remote_actor_id' => $remoteActor->id,
+            'status' => FollowerStatus::Pending,
+        ]);
 
         Log::debug(
             message: 'InteractController: Follow activity dispatched',
@@ -89,7 +100,7 @@ final class InteractController extends Controller
                 ->withErrors(['remote_actor_url' => 'Remote actor not found']);
         }
 
-        $undoActivity = ActivityBuilder::undoFollow(actor: $localActor, objectUrl: $remoteActorUrl);
+        $undoActivity = $this->activityBuilder->undoFollow(actor: $localActor, objectUrl: $remoteActorUrl);
 
         $undoRecord = Activity::query()->create(attributes: [
             'actor_id' => $localActor->id,
@@ -102,9 +113,8 @@ final class InteractController extends Controller
         if (config(key: 'activitypub.federation.enabled')) {
             DeliverActivity::dispatch(
                 inboxUrl: $remoteActor->inbox_url,
-                activity: $undoActivity,
-                actor: $localActor,
-                activityId: $undoRecord->id,
+                activityModelId: $undoRecord->id,
+                actorId: $localActor->id,
             );
         }
 
@@ -112,6 +122,11 @@ final class InteractController extends Controller
             ->where(column: 'actor_id', operator: '=', value: $localActor->id)
             ->where(column: 'type', operator: '=', value: ActivityType::Follow)
             ->where(column: 'remote_actor_id', operator: '=', value: $remoteActor->id)
+            ->delete();
+
+        Following::query()
+            ->where('actor_id', '=', $localActor->id)
+            ->where('remote_actor_id', '=', $remoteActor->id)
             ->delete();
 
         return redirect()
@@ -135,7 +150,7 @@ final class InteractController extends Controller
             ->where(column: 'actor_url', operator: '=', value: $remoteActorUrl)
             ->first();
 
-        $likeActivity = ActivityBuilder::like(actor: $localActor, objectUrl: $remoteObjectUrl);
+        $likeActivity = $this->activityBuilder->like(actor: $localActor, objectUrl: $remoteObjectUrl);
 
         $likeRecord = Activity::query()->create(attributes: [
             'actor_id' => $localActor->id,
@@ -148,9 +163,8 @@ final class InteractController extends Controller
         if ($remoteActor !== null && config(key: 'activitypub.federation.enabled')) {
             DeliverActivity::dispatch(
                 inboxUrl: $remoteActor->inbox_url,
-                activity: $likeActivity,
-                actor: $localActor,
-                activityId: $likeRecord->id,
+                activityModelId: $likeRecord->id,
+                actorId: $localActor->id,
             );
         }
 
@@ -175,7 +189,7 @@ final class InteractController extends Controller
             ->where(column: 'actor_url', operator: '=', value: $remoteActorUrl)
             ->first();
 
-        $announceActivity = ActivityBuilder::announce(actor: $localActor, objectUrl: $remoteObjectUrl);
+        $announceActivity = $this->activityBuilder->announce(actor: $localActor, objectUrl: $remoteObjectUrl);
 
         $announceRecord = Activity::query()->create(attributes: [
             'actor_id' => $localActor->id,
@@ -188,9 +202,8 @@ final class InteractController extends Controller
         if ($remoteActor !== null && config(key: 'activitypub.federation.enabled')) {
             DeliverActivity::dispatch(
                 inboxUrl: $remoteActor->inbox_url,
-                activity: $announceActivity,
-                actor: $localActor,
-                activityId: $announceRecord->id,
+                activityModelId: $announceRecord->id,
+                actorId: $localActor->id,
             );
         }
 
@@ -217,7 +230,7 @@ final class InteractController extends Controller
             ->where(column: 'actor_url', operator: '=', value: $remoteActorUrl)
             ->first();
 
-        $createActivity = ActivityBuilder::createNote(
+        $createActivity = $this->activityBuilder->createNote(
             actor: $localActor,
             content: $content,
             inReplyToUrl: $remoteObjectUrl,
@@ -236,9 +249,8 @@ final class InteractController extends Controller
         if ($remoteActor !== null && config(key: 'activitypub.federation.enabled')) {
             DeliverActivity::dispatch(
                 inboxUrl: $remoteActor->inbox_url,
-                activity: $createActivity,
-                actor: $localActor,
-                activityId: $createRecord->id,
+                activityModelId: $createRecord->id,
+                actorId: $localActor->id,
             );
         }
 

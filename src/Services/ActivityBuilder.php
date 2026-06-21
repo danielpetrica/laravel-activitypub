@@ -3,14 +3,15 @@
 namespace DanielPetrica\LaravelActivityPub\Services;
 
 use DanielPetrica\LaravelActivityPub\Contracts\ActorContract;
+use DanielPetrica\LaravelActivityPub\Contracts\ActivityBuilderContract;
 use Illuminate\Support\Str;
 
-final class ActivityBuilder
+final class ActivityBuilder implements ActivityBuilderContract
 {
     /**
      * @return array<string, mixed>
      */
-    public static function follow(ActorContract $actor, string $objectUrl): array
+    public function follow(ActorContract $actor, string $objectUrl): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -24,7 +25,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function undoFollow(ActorContract $actor, string $objectUrl): array
+    public function undoFollow(ActorContract $actor, string $objectUrl): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -43,7 +44,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function accept(ActorContract $actor, array $originalPayload): array
+    public function accept(ActorContract $actor, array $originalPayload): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -57,7 +58,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function like(ActorContract $actor, string $objectUrl): array
+    public function like(ActorContract $actor, string $objectUrl): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -71,7 +72,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function announce(ActorContract $actor, string $objectUrl): array
+    public function announce(ActorContract $actor, string $objectUrl): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -87,7 +88,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function delete(ActorContract $actor, string $objectId): array
+    public function delete(ActorContract $actor, string $objectId): array
     {
         return [
             '@context' => 'https://www.w3.org/ns/activitystreams',
@@ -105,7 +106,7 @@ final class ActivityBuilder
     /**
      * @return array<string, mixed>
      */
-    public static function createNote(ActorContract $actor, string $content, string $inReplyToUrl, array $to, array $cc = []): array
+    public function createNote(ActorContract $actor, string $content, string $inReplyToUrl, array $to, array $cc = []): array
     {
         $noteId = $actor->getActorId().'/note/'.Str::uuid();
 

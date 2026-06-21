@@ -3,6 +3,7 @@
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers;
 
 use DanielPetrica\LaravelActivityPub\Enums\FollowerStatus;
+use DanielPetrica\LaravelActivityPub\Http\Controllers\Concerns\RespondsToAccept;
 use DanielPetrica\LaravelActivityPub\Http\Resources\OrderedCollection;
 use DanielPetrica\LaravelActivityPub\Models\Actor;
 use DanielPetrica\LaravelActivityPub\Models\Follower;
@@ -12,8 +13,17 @@ use Illuminate\Routing\Controller;
 
 final class FollowersController extends Controller
 {
+    use RespondsToAccept;
+
     public function __invoke(Request $request, Actor $actor): JsonResponse
     {
+        if (! $this->wantsJson($request)) {
+            return response()->json(
+                data: ['error' => 'This endpoint serves ActivityPub JSON. Use an appropriate Accept header.'],
+                status: 406,
+            );
+        }
+
         $perPage = min(max((int) $request->query('perPage', 20), 1), 100);
         $page = max((int) $request->query('page', 1), 1);
 
@@ -56,6 +66,6 @@ final class FollowersController extends Controller
             );
         }
 
-        return response()->json($collection, headers: ['Content-Type' => 'application/activity+json']);
+        return $this->activityPubResponse($request, $collection);
     }
 }

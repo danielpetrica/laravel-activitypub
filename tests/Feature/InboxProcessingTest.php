@@ -54,7 +54,7 @@ it('returns 202 for incoming Create activity', function (): void {
     $response->assertStatus(status: 202);
 });
 
-it('returns 400 when payload is missing type field', function (): void {
+it('returns 422 when payload is missing type field', function (): void {
     config()->set(key: 'activitypub.http_signatures.enabled', value: false);
 
     $response = $this->postJson(
@@ -62,10 +62,10 @@ it('returns 400 when payload is missing type field', function (): void {
         data: ['actor' => 'https://example.com/users/remote'],
     );
 
-    $response->assertStatus(status: 400);
+    $response->assertStatus(status: 422);
 });
 
-it('returns 400 when payload is missing actor field', function (): void {
+it('returns 422 when payload is missing actor field', function (): void {
     config()->set(key: 'activitypub.http_signatures.enabled', value: false);
 
     $response = $this->postJson(
@@ -73,7 +73,7 @@ it('returns 400 when payload is missing actor field', function (): void {
         data: ['type' => 'Create'],
     );
 
-    $response->assertStatus(status: 400);
+    $response->assertStatus(status: 422);
 });
 
 it('processes incoming Follow activity and creates a follower', function (): void {

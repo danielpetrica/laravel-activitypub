@@ -19,6 +19,12 @@ final class HostMetaController extends Controller
 </XRD>
 XML;
 
-        return response(content: $xml, headers: ['Content-Type' => 'application/xrd+xml']);
+        $headers = ['Content-Type' => 'application/xrd+xml'];
+
+        if (config('activitypub.cache.enabled', true)) {
+            $headers['Cache-Control'] = 'public, max-age='.config('activitypub.cache.ttl', 86400);
+        }
+
+        return response(content: $xml, headers: $headers);
     }
 }

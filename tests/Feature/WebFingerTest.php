@@ -2,32 +2,32 @@
 
 use DanielPetrica\LaravelActivityPub\Models\Actor;
 
-it('returns 400 when resource parameter is missing', function (): void {
+it('returns 422 when resource parameter is missing', function (): void {
     $response = $this->getJson(
         uri: route(name: 'activitypub.webfinger'),
     );
 
-    $response->assertStatus(status: 400);
+    $response->assertStatus(status: 422);
 });
 
-it('returns 400 when resource is not an acct URI', function (): void {
+it('returns 422 when resource is not an acct URI', function (): void {
     $response = $this->getJson(
         uri: route(name: 'activitypub.webfinger', parameters: [
             'resource' => 'https://example.com/user',
         ]),
     );
 
-    $response->assertStatus(status: 400);
+    $response->assertStatus(status: 422);
 });
 
-it('returns 400 when acct URI is malformed', function (): void {
+it('returns 422 when acct URI is malformed', function (): void {
     $response = $this->getJson(
         uri: route(name: 'activitypub.webfinger', parameters: [
             'resource' => 'acct:invalid',
         ]),
     );
 
-    $response->assertStatus(status: 400);
+    $response->assertStatus(status: 422);
 });
 
 it('returns 404 when domain does not match', function (): void {

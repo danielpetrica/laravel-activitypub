@@ -10,7 +10,7 @@ final class NodeInfoController extends Controller
 {
     public function discovery(): JsonResponse
     {
-        return response()->json(data: [
+        return $this->cachedJsonResponse(data: [
             'links' => [
                 [
                     'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
@@ -22,7 +22,7 @@ final class NodeInfoController extends Controller
 
     public function index(): JsonResponse
     {
-        return response()->json(data: [
+        return $this->cachedJsonResponse(data: [
             'version' => '2.0',
             'software' => [
                 'name' => 'laravel-activitypub',
@@ -41,5 +41,16 @@ final class NodeInfoController extends Controller
             'openRegistrations' => config('activitypub.open_registrations', false),
             'metadata' => [],
         ]);
+    }
+
+    protected function cachedJsonResponse(array $data, int $status = 200): JsonResponse
+    {
+        $headers = [];
+
+        if (config('activitypub.cache.enabled', true)) {
+            $headers['Cache-Control'] = 'public, max-age='.config('activitypub.cache.ttl', 86400);
+        }
+
+        return response()->json(data: $data, status: $status, headers: $headers);
     }
 }

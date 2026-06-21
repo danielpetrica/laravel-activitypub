@@ -18,6 +18,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Actor Type
+    |--------------------------------------------------------------------------
+    |
+    | The default ActivityPub actor type. Can be 'Person', 'Group', 'Service',
+    | 'Application', or 'Organization'. Consumers can override this per-actor
+    | by setting the 'type' column on their Actor model, or globally here.
+    |
+    */
+    'actor_type' => 'Person',
+
+    /*
+    |--------------------------------------------------------------------------
     | Routes
     |--------------------------------------------------------------------------
     |
@@ -104,8 +116,22 @@ return [
     |
     */
     'fediverse' => [
-        'enabled' => env('ACTIVITYPUB_FEDERIVERSE_ENABLED', true),
+        'enabled' => env('ACTIVITYPUB_FEDIVERSE_ENABLED', true),
         'prefix' => 'fediverse',
         'middleware' => ['web', 'auth'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Caching
+    |--------------------------------------------------------------------------
+    |
+    | Cache-Control headers for ActivityPub responses. Disable if you need
+    | immediate propagation of profile or actor changes.
+    |
+    */
+    'cache' => [
+        'enabled' => env('ACTIVITYPUB_CACHE_ENABLED', true),
+        'ttl' => 86400,
     ],
 ];

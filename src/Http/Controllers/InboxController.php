@@ -3,6 +3,8 @@
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers;
 
 use DanielPetrica\LaravelActivityPub\Actions\InboxProcessor;
+use DanielPetrica\LaravelActivityPub\Http\Controllers\Concerns\RespondsToAccept;
+use DanielPetrica\LaravelActivityPub\Http\Requests\InboxRequest;
 use DanielPetrica\LaravelActivityPub\Http\Resources\ActivityResource;
 use DanielPetrica\LaravelActivityPub\Http\Resources\OrderedCollection;
 use DanielPetrica\LaravelActivityPub\Models\Activity;
@@ -14,12 +16,21 @@ use Illuminate\Routing\Controller;
 
 final class InboxController extends Controller
 {
+    use RespondsToAccept;
+
     public function __construct(
         private InboxProcessor $inboxProcessor,
     ) {}
 
     public function index(Request $request, Actor $actor): JsonResponse
     {
+        if (! $this->wantsJson($request)) {
+            return response()->json(
+                data: ['error' => 'This endpoint serves ActivityPub JSON. Use an appropriate Accept header.'],
+                status: 406,
+            );
+        }
+
         $perPage = 20;
         $page = (int) $request->query(key: 'page', default: 1);
         $page = max($page, 1);
@@ -67,34 +78,16 @@ final class InboxController extends Controller
             );
         }
 
-        return response()->json(
-            data: $collection,
-            headers: ['Content-Type' => 'application/activity+json'],
-        );
+        return $this->activityPubResponse($request, $collection);
     }
 
-    public function __invoke(Request $request, Actor $actor): JsonResponse
+    public function __invoke(InboxRequest $request, Actor $actor): JsonResponse
     {
         if ($request->header('Content-Length') && (int) $request->header('Content-Length') > 1048576) {
             return response()->json(['error' => 'Payload too large.'], 413);
         }
 
         $payload = $request->all();
-
-        if (! isset($payload['type']) || ! is_string($payload['type'])) {
-            return response()->json(
-                data: ['error' => 'Invalid payload: missing or invalid "type" field.'],
-                status: 400,
-            );
-        }
-
-        if (! isset($payload['actor']) || ! is_string($payload['actor'])) {
-            return response()->json(
-                data: ['error' => 'Invalid payload: missing or invalid "actor" field.'],
-                status: 400,
-            );
-        }
-
         $actorUrl = $payload['actor'];
         $remoteActor = $request->attributes->get(key: 'remote_actor');
 
@@ -113,28 +106,13 @@ final class InboxController extends Controller
         );
     }
 
-    public function sharedInbox(Request $request): JsonResponse
+    public function sharedInbox(InboxRequest $request): JsonResponse
     {
         if ($request->header('Content-Length') && (int) $request->header('Content-Length') > 1048576) {
             return response()->json(['error' => 'Payload too large.'], 413);
         }
 
         $payload = $request->all();
-
-        if (! isset($payload['type']) || ! is_string($payload['type'])) {
-            return response()->json(
-                data: ['error' => 'Invalid payload: missing or invalid "type" field.'],
-                status: 400,
-            );
-        }
-
-        if (! isset($payload['actor']) || ! is_string($payload['actor'])) {
-            return response()->json(
-                data: ['error' => 'Invalid payload: missing or invalid "actor" field.'],
-                status: 400,
-            );
-        }
-
         $actorUrl = $payload['actor'];
         $remoteActor = $request->attributes->get(key: 'remote_actor');
 

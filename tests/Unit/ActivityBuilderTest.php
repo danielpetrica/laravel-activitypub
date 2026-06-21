@@ -27,7 +27,7 @@ final class TestActivityBuilderActor implements ActorContract
 
 it('builds a Follow activity', function (): void {
     $actor = new TestActivityBuilderActor();
-    $activity = ActivityBuilder::follow($actor, 'https://example.com/users/target');
+    $activity = (new ActivityBuilder())->follow($actor, 'https://example.com/users/target');
 
     expect($activity)
         ->toHaveKey('@context', 'https://www.w3.org/ns/activitystreams')
@@ -39,7 +39,7 @@ it('builds a Follow activity', function (): void {
 
 it('builds an Announce activity with followers cc', function (): void {
     $actor = new TestActivityBuilderActor();
-    $activity = ActivityBuilder::announce($actor, 'https://example.com/notes/123');
+    $activity = (new ActivityBuilder())->announce($actor, 'https://example.com/notes/123');
 
     expect($activity)
         ->toHaveKey('type', 'Announce')
@@ -49,7 +49,7 @@ it('builds an Announce activity with followers cc', function (): void {
 
 it('builds a CreateNote activity with cc', function (): void {
     $actor = new TestActivityBuilderActor();
-    $activity = ActivityBuilder::createNote(
+    $activity = (new ActivityBuilder())->createNote(
         $actor,
         'Hello world',
         'https://example.com/notes/1',
@@ -65,7 +65,7 @@ it('builds a CreateNote activity with cc', function (): void {
 
 it('builds an Undo activity with original Follow id', function (): void {
     $actor = new TestActivityBuilderActor();
-    $activity = ActivityBuilder::undoFollow($actor, 'https://example.com/users/target');
+    $activity = (new ActivityBuilder())->undoFollow($actor, 'https://example.com/users/target');
 
     expect($activity)
         ->toHaveKey('type', 'Undo')

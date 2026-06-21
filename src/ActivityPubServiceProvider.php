@@ -2,12 +2,25 @@
 
 namespace DanielPetrica\LaravelActivityPub;
 
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleAcceptAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleAnnounceAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleBlockAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleCreateAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleDeleteAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleFollowAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleLikeAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleRejectAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleUndoAction;
+use DanielPetrica\LaravelActivityPub\Actions\Handlers\HandleUpdateAction;
+use DanielPetrica\LaravelActivityPub\Actions\InboxProcessor;
 use DanielPetrica\LaravelActivityPub\Console\Commands\CreateActorCommand;
 use DanielPetrica\LaravelActivityPub\Console\Commands\DeliverContentCommand;
 use DanielPetrica\LaravelActivityPub\Console\Commands\PruneActivitiesCommand;
 use DanielPetrica\LaravelActivityPub\Contracts\ActorContract;
+use DanielPetrica\LaravelActivityPub\Contracts\ActivityBuilderContract;
 use DanielPetrica\LaravelActivityPub\Http\Middleware\VerifyHttpSignature;
 use DanielPetrica\LaravelActivityPub\Models\Actor;
+use DanielPetrica\LaravelActivityPub\Services\ActivityBuilder;
 use DanielPetrica\LaravelActivityPub\Services\ActivityPubService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
@@ -28,10 +41,34 @@ final class ActivityPubServiceProvider extends ServiceProvider
             concrete: Actor::class,
         );
 
+        $this->app->bind(
+            abstract: ActivityBuilderContract::class,
+            concrete: ActivityBuilder::class,
+        );
+
         $this->app->singleton(
             abstract: 'activitypub',
             concrete: ActivityPubService::class,
         );
+
+        $this->app->tag([
+            HandleFollowAction::class,
+            HandleLikeAction::class,
+            HandleAnnounceAction::class,
+            HandleUndoAction::class,
+            HandleCreateAction::class,
+            HandleDeleteAction::class,
+            HandleUpdateAction::class,
+            HandleBlockAction::class,
+            HandleAcceptAction::class,
+            HandleRejectAction::class,
+        ], 'activitypub.activity-handlers');
+
+        $this->app->bind(InboxProcessor::class, function ($app) {
+            return new InboxProcessor(
+                handlers: iterator_to_array($app->tagged('activitypub.activity-handlers')),
+            );
+        });
     }
 
     public function boot(): void

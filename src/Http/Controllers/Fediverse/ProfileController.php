@@ -2,9 +2,9 @@
 
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers\Fediverse;
 
+use DanielPetrica\LaravelActivityPub\Http\Requests\ProfileUpdateRequest;
 use DanielPetrica\LaravelActivityPub\Traits\ResolvesLocalActor;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\View\View;
 
@@ -26,15 +26,8 @@ final class ProfileController extends Controller
         ]);
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->validate(rules: [
-            'name' => ['nullable', 'string', 'max:255'],
-            'summary' => ['nullable', 'string', 'max:5000'],
-            'icon_url' => ['nullable', 'string', 'url', 'max:2048'],
-            'image_url' => ['nullable', 'string', 'url', 'max:2048'],
-        ]);
-
         $user = auth()->user();
         $localActor = $this->resolveLocalActor();
 

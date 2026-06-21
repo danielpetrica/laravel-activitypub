@@ -2,6 +2,7 @@
 
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers;
 
+use DanielPetrica\LaravelActivityPub\Http\Controllers\Concerns\RespondsToAccept;
 use DanielPetrica\LaravelActivityPub\Http\Resources\ActivityResource;
 use DanielPetrica\LaravelActivityPub\Http\Resources\OrderedCollection;
 use DanielPetrica\LaravelActivityPub\Models\Activity;
@@ -12,8 +13,17 @@ use Illuminate\Routing\Controller;
 
 final class OutboxController extends Controller
 {
+    use RespondsToAccept;
+
     public function __invoke(Request $request, Actor $actor): JsonResponse
     {
+        if (! $this->wantsJson($request)) {
+            return response()->json(
+                data: ['error' => 'This endpoint serves ActivityPub JSON. Use an appropriate Accept header.'],
+                status: 406,
+            );
+        }
+
         $perPage = 20;
         $page = (int) $request->query(key: 'page', default: 1);
         $page = max($page, 1);
@@ -61,9 +71,6 @@ final class OutboxController extends Controller
             );
         }
 
-        return response()->json(
-            data: $collection,
-            headers: ['Content-Type' => 'application/activity+json'],
-        );
+        return $this->activityPubResponse($request, $collection);
     }
 }

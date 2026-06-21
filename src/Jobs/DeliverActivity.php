@@ -2,6 +2,8 @@
 
 namespace DanielPetrica\LaravelActivityPub\Jobs;
 
+use DanielPetrica\LaravelActivityPub\Events\ActivityDelivered;
+use DanielPetrica\LaravelActivityPub\Events\ActivityDeliveryFailed;
 use DanielPetrica\LaravelActivityPub\Models\Activity;
 use DanielPetrica\LaravelActivityPub\Models\Actor;
 use DanielPetrica\LaravelActivityPub\Services\DeliveryClient;
@@ -10,12 +12,11 @@ use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 final class DeliverActivity implements ShouldBeUnique, ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable;
 
     public int $uniqueFor = 3600;
 
@@ -25,27 +26,27 @@ final class DeliverActivity implements ShouldBeUnique, ShouldQueue
 
     public int $maxExceptions = 3;
 
-    /**
-     * @param  array<string, mixed>  $activity
-     */
     public function __construct(
         public string $inboxUrl,
-        public array $activity,
-        public Actor $actor,
-        public ?int $activityId = null,
+        public int $activityModelId,
+        public int $actorId,
     ) {}
 
     public function uniqueId(): string
     {
-        return sha1($this->inboxUrl.'|'.($this->activityId ?? $this->activity['id'] ?? ''));
+        return sha1($this->inboxUrl.'|'.$this->activityModelId);
     }
 
     public function handle(DeliveryClient $deliveryClient): void
     {
+        $activityModel = Activity::findOrFail($this->activityModelId);
+        $actor = Actor::findOrFail($this->actorId);
+        $activity = $activityModel->payload;
+
         $responseCode = $deliveryClient->deliver(
             inboxUrl: $this->inboxUrl,
-            activity: $this->activity,
-            actor: $this->actor,
+            activity: $activity,
+            actor: $actor,
         );
 
         if ($responseCode === null) {
@@ -57,14 +58,18 @@ final class DeliverActivity implements ShouldBeUnique, ShouldQueue
         }
 
         if ($responseCode >= 200 && $responseCode < 300) {
-            if ($this->activityId !== null) {
-                Activity::query()
-                    ->where(column: 'id', operator: '=', value: $this->activityId)
-                    ->update(values: [
-                        'status' => 'delivered',
-                        'delivered_at' => now(),
-                    ]);
-            }
+            Activity::query()
+                ->where(column: 'id', operator: '=', value: $this->activityModelId)
+                ->update(values: [
+                    'status' => 'delivered',
+                    'delivered_at' => now(),
+                ]);
+
+            event(new ActivityDelivered(
+                activityId: $this->activityModelId,
+                inboxUrl: $this->inboxUrl,
+                actorId: $this->actorId,
+            ));
 
             Log::debug('DeliverActivity: delivered successfully', [
                 'inboxUrl' => $this->inboxUrl,
@@ -81,15 +86,20 @@ final class DeliverActivity implements ShouldBeUnique, ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        if ($this->activityId !== null) {
-            Activity::query()
-                ->where('id', '=', $this->activityId)
-                ->update(['status' => 'failed']);
-        }
+        Activity::query()
+            ->where('id', '=', $this->activityModelId)
+            ->update(['status' => 'failed']);
+
+        event(new ActivityDeliveryFailed(
+            activityId: $this->activityModelId,
+            inboxUrl: $this->inboxUrl,
+            actorId: $this->actorId,
+            error: $e->getMessage(),
+        ));
 
         Log::warning('DeliverActivity: permanently failed', [
             'inboxUrl' => $this->inboxUrl,
-            'activityId' => $this->activityId,
+            'activityModelId' => $this->activityModelId,
             'error' => $e->getMessage(),
         ]);
     }

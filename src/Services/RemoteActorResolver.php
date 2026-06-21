@@ -101,6 +101,7 @@ final class RemoteActorResolver
             attributes: ['actor_url' => $actorUri],
             values: [
                 'inbox_url' => $data['inbox'] ?? $actorUri.'/inbox',
+                'shared_inbox_url' => $data['endpoints']['sharedInbox'] ?? null,
                 'public_key_pem' => $data['publicKey']['publicKeyPem'] ?? null,
                 'username' => $username,
                 'domain' => $domain,

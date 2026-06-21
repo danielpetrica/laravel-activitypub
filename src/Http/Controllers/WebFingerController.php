@@ -2,43 +2,19 @@
 
 namespace DanielPetrica\LaravelActivityPub\Http\Controllers;
 
+use DanielPetrica\LaravelActivityPub\Http\Requests\WebFingerRequest;
 use DanielPetrica\LaravelActivityPub\Http\Resources\WebFingerResource;
 use DanielPetrica\LaravelActivityPub\Models\Actor;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 final class WebFingerController extends Controller
 {
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(WebFingerRequest $request): JsonResponse
     {
         $resource = $request->query(key: 'resource');
-
-        if ($resource === null || ! is_string($resource)) {
-            return response()->json(
-                data: ['error' => 'The "resource" parameter is required.'],
-                status: 400,
-            );
-        }
-
-        if (! str_starts_with(haystack: $resource, needle: 'acct:')) {
-            return response()->json(
-                data: ['error' => 'Only "acct:" URI scheme is supported.'],
-                status: 400,
-            );
-        }
-
         $account = substr(string: $resource, offset: 5);
-        $parts = explode(separator: '@', string: $account);
-
-        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
-            return response()->json(
-                data: ['error' => 'Invalid acct URI format. Expected acct:user@domain.'],
-                status: 400,
-            );
-        }
-
-        [$username, $domain] = $parts;
+        [$username, $domain] = explode(separator: '@', string: $account);
 
         $parsedUrl = parse_url(url: config('activitypub.domain'));
         $configuredDomain = $parsedUrl['host'];
@@ -66,6 +42,12 @@ final class WebFingerController extends Controller
 
         $jrd = (new WebFingerResource(resource: $actor))->toArray(request: $request);
 
-        return response()->json(data: $jrd, headers: ['Content-Type' => 'application/jrd+json']);
+        $headers = ['Content-Type' => 'application/jrd+json'];
+
+        if (config('activitypub.cache.enabled', true)) {
+            $headers['Cache-Control'] = 'public, max-age='.config('activitypub.cache.ttl', 86400);
+        }
+
+        return response()->json(data: $jrd, headers: $headers);
     }
 }

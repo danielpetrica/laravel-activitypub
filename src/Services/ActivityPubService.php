@@ -4,6 +4,7 @@ namespace DanielPetrica\LaravelActivityPub\Services;
 
 use DanielPetrica\LaravelActivityPub\Actions\InboxProcessor;
 use DanielPetrica\LaravelActivityPub\Contracts\ActorContract;
+use DanielPetrica\LaravelActivityPub\Contracts\ActivityBuilderContract;
 use DanielPetrica\LaravelActivityPub\Contracts\FederatableContentContract;
 use DanielPetrica\LaravelActivityPub\Enums\ActivityType;
 use DanielPetrica\LaravelActivityPub\Enums\FollowerStatus;
@@ -24,6 +25,7 @@ final class ActivityPubService
         private WebFingerService $webFingerService,
         private RemoteActorResolver $remoteActorResolver,
         private DeliveryClient $deliveryClient,
+        private ActivityBuilderContract $activityBuilder,
     ) {}
 
     public function sendCreate(FederatableContentContract $content): void
@@ -68,7 +70,7 @@ final class ActivityPubService
 
     public function sendDelete(string $objectId, ActorContract $actor): void
     {
-        $activity = ActivityBuilder::delete(actor: $actor, objectId: $objectId);
+        $activity = $this->activityBuilder->delete(actor: $actor, objectId: $objectId);
 
         $localActor = $this->resolveLocalActor(actor: $actor);
 
@@ -141,26 +143,38 @@ final class ActivityPubService
             return $results;
         }
 
+        $syncBatch = function ($followers) use ($activity, $localActor, $activityId, &$results) {
+            $sent = [];
+            foreach ($followers as $follower) {
+                $inboxUrl = $follower->remoteActor->shared_inbox_url ?? $follower->remoteActor->inbox_url;
+                if (isset($sent[$inboxUrl])) {
+                    $results[] = [
+                        'actor_url' => $follower->remoteActor->actor_url,
+                        'inbox_url' => $inboxUrl,
+                        'response_code' => $sent[$inboxUrl],
+                    ];
+                    continue;
+                }
+                $responseCode = $this->deliverSingleSync(
+                    inboxUrl: $inboxUrl,
+                    activity: $activity,
+                    actor: $localActor,
+                    activityId: $activityId,
+                );
+                $sent[$inboxUrl] = $responseCode;
+                $results[] = [
+                    'actor_url' => $follower->remoteActor->actor_url,
+                    'inbox_url' => $inboxUrl,
+                    'response_code' => $responseCode,
+                ];
+            }
+        };
+
         Follower::query()
             ->with(relations: 'remoteActor')
             ->where(column: 'actor_id', operator: '=', value: $localActor->id)
             ->where(column: 'status', operator: '=', value: FollowerStatus::Accepted)
-            ->chunk(200, function ($followers) use ($activity, $localActor, $activityId, &$results) {
-                foreach ($followers as $follower) {
-                    $responseCode = $this->deliverSingleSync(
-                        inboxUrl: $follower->remoteActor->inbox_url,
-                        activity: $activity,
-                        actor: $localActor,
-                        activityId: $activityId,
-                    );
-
-                    $results[] = [
-                        'actor_url' => $follower->remoteActor->actor_url,
-                        'inbox_url' => $follower->remoteActor->inbox_url,
-                        'response_code' => $responseCode,
-                    ];
-                }
-            });
+            ->chunk(200, $syncBatch);
 
         return $results;
     }
@@ -291,20 +305,26 @@ final class ActivityPubService
             return;
         }
 
+        $dispatchBatch = function ($followers) use ($activity, $localActor, $activityId) {
+            $groups = [];
+            foreach ($followers as $follower) {
+                $inboxUrl = $follower->remoteActor->shared_inbox_url ?? $follower->remoteActor->inbox_url;
+                $groups[$inboxUrl] = true;
+            }
+            foreach (array_keys($groups) as $inboxUrl) {
+                DeliverActivity::dispatch(
+                    inboxUrl: $inboxUrl,
+                    activityModelId: $activityId,
+                    actorId: $localActor->id,
+                );
+            }
+        };
+
         Follower::query()
             ->with(relations: 'remoteActor')
             ->where(column: 'actor_id', operator: '=', value: $localActor->id)
             ->where(column: 'status', operator: '=', value: FollowerStatus::Accepted)
-            ->chunk(200, function ($followers) use ($activity, $localActor, $activityId) {
-                foreach ($followers as $follower) {
-                    DeliverActivity::dispatch(
-                        inboxUrl: $follower->remoteActor->inbox_url,
-                        activity: $activity,
-                        actor: $localActor,
-                        activityId: $activityId,
-                    );
-                }
-            });
+            ->chunk(200, $dispatchBatch);
     }
 
     public function recordActivity(
@@ -339,7 +359,7 @@ final class ActivityPubService
             return;
         }
 
-        $activity = ActivityBuilder::follow(actor: $actor, objectUrl: $target->actor_url);
+        $activity = $this->activityBuilder->follow(actor: $actor, objectUrl: $target->actor_url);
 
         $record = $this->recordActivity(
             localActor: $localActor,
@@ -348,11 +368,11 @@ final class ActivityPubService
             payload: $activity,
         );
 
+        $inboxUrl = $target->shared_inbox_url ?? $target->inbox_url;
         DeliverActivity::dispatch(
-            inboxUrl: $target->inbox_url,
-            activity: $activity,
-            actor: $localActor,
-            activityId: $record->id,
+            inboxUrl: $inboxUrl,
+            activityModelId: $record->id,
+            actorId: $localActor->id,
         );
     }
 
@@ -365,7 +385,7 @@ final class ActivityPubService
             return;
         }
 
-        $activity = ActivityBuilder::undoFollow(actor: $actor, objectUrl: $target->actor_url);
+        $activity = $this->activityBuilder->undoFollow(actor: $actor, objectUrl: $target->actor_url);
 
         $record = $this->recordActivity(
             localActor: $localActor,
@@ -374,11 +394,11 @@ final class ActivityPubService
             payload: $activity,
         );
 
+        $inboxUrl = $target->shared_inbox_url ?? $target->inbox_url;
         DeliverActivity::dispatch(
-            inboxUrl: $target->inbox_url,
-            activity: $activity,
-            actor: $localActor,
-            activityId: $record->id,
+            inboxUrl: $inboxUrl,
+            activityModelId: $record->id,
+            actorId: $localActor->id,
         );
 
         $follower->delete();
@@ -392,7 +412,7 @@ final class ActivityPubService
             return;
         }
 
-        $activity = ActivityBuilder::like(actor: $actor, objectUrl: $objectUrl);
+        $activity = $this->activityBuilder->like(actor: $actor, objectUrl: $objectUrl);
 
         $record = $this->recordActivity(
             localActor: $localActor,
@@ -417,7 +437,7 @@ final class ActivityPubService
             return;
         }
 
-        $activity = ActivityBuilder::announce(actor: $actor, objectUrl: $objectUrl);
+        $activity = $this->activityBuilder->announce(actor: $actor, objectUrl: $objectUrl);
 
         $record = $this->recordActivity(
             localActor: $localActor,
@@ -437,7 +457,7 @@ final class ActivityPubService
             return;
         }
 
-        $activity = ActivityBuilder::createNote(
+        $activity = $this->activityBuilder->createNote(
             actor: $actor,
             content: $content,
             inReplyToUrl: $inReplyToUrl,
@@ -477,11 +497,11 @@ final class ActivityPubService
             return;
         }
 
+        $inboxUrl = $remoteActor->shared_inbox_url ?? $remoteActor->inbox_url;
         DeliverActivity::dispatch(
-            inboxUrl: $remoteActor->inbox_url,
-            activity: $activity,
-            actor: $localActor,
-            activityId: $activityId,
+            inboxUrl: $inboxUrl,
+            activityModelId: $activityId,
+            actorId: $localActor->id,
         );
     }
 

@@ -16,8 +16,8 @@
         </div>
     @else
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            @foreach ($following as $activity)
-                @php $ra = $activity->remoteActor; @endphp
+            @foreach ($following as $follow)
+                @php $ra = $follow->remoteActor; @endphp
                 @if ($ra)
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-start gap-4">
                         <div class="flex-shrink-0">
@@ -33,7 +33,7 @@
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-gray-900 truncate">{{ $ra->name ?? $ra->username }}</p>
                             <p class="text-xs text-gray-500 truncate">{{ $ra->username }}@ {{ $ra->domain }}</p>
-                            <p class="text-xs text-gray-400 mt-1">Following since {{ $activity->created_at->format('M j, Y') }}</p>
+                            <p class="text-xs text-gray-400 mt-1">Following since {{ $follow->created_at->format('M j, Y') }}</p>
                         </div>
 
                         <form action="{{ route('fediverse.unfollow') }}" method="POST" onsubmit="return confirm('Unfollow {{ addslashes($ra->name ?? $ra->username) }}?')">
