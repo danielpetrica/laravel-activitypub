@@ -8,6 +8,7 @@ use DanielPetrica\LaravelActivityPub\Services\RemoteActorResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Predis\Connection\ConnectionException;
 use Symfony\Component\HttpFoundation\Response;
 
 final class VerifyHttpSignature
@@ -58,7 +59,13 @@ final class VerifyHttpSignature
 
         $cacheKey = 'sig-replay:'.md5($keyId.'|'.$signatureHeader.'|'.$dateHeader);
 
-        if (! Cache::add(key: $cacheKey, value: true, ttl: 120)) {
+        try {
+            $isDuplicate = ! Cache::add(key: $cacheKey, value: true, ttl: 120);
+        } catch (ConnectionException) {
+            $isDuplicate = false;
+        }
+
+        if ($isDuplicate) {
             return response()->json(
                 data: ['error' => 'Duplicate request detected.'],
                 status: 401,
